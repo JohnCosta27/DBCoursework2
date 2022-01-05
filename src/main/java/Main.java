@@ -1,40 +1,157 @@
+import java.io.*;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.sql.*;
+import java.time.LocalTime;
+import java.util.Scanner;
 
+/**
+ * Database Mini-project submission file.
+ *
+ * @author johnc
+ */
 public class Main {
 
-	// NOTE: You will need to change some variables from START to END.
+	/**
+	 *	Initliases the connection with the database.
+	 *
+	 * @param argv
+	 * @throws SQLException
+	 */
 	public static void main(String[] argv) throws SQLException {
-		// START
-		// Enter your username.
-		String user = "zjac044";
-		// Enter your database password, NOT your university password.
-		String password = "zeniow";
+
+		Scanner in = new Scanner(System.in);
+
+		System.out.print("Please enter your username: ");
+		String user = in.nextLine();
+
+		System.out.print("Please enter your password: ");
+		String password = in.nextLine();
 
 		String database = "localhost";
 
 		Connection connection = connectToDatabase(user, password, database);
 		if (connection != null) {
-			System.out.println("SUCCESS: You made it!"
-					+ "\n\t You can now take control of your database!\n");
+			System.out.println("STATUS: Database Connected!");
+
+			initDabaseTables(connection);
+
 		} else {
 			System.out.println("ERROR: \tFailed to make connection!");
 			System.exit(1);
 		}
-		// Now we're ready to use the DB. You may add your code below this line.
 
-		Statement selectStmt = connection.createStatement();
-		ResultSet rs = selectStmt.executeQuery("SELECT * FROM customer");
-		while(rs.next()) {
-			System.out.println(rs.getString(1));
-			System.out.println(rs.getString(2));
-			System.out.println(rs.getString(3));
-			System.out.println(rs.getString(4));
+	}
+
+	/**
+	 * Executes the needed drop table commands and creates tables.
+	 *
+	 * @param connection is the PostgreSQL db connection object.
+	 */
+	public static void initDabaseTables(Connection connection) {
+		try {
+
+			Statement dropAirports = connection.createStatement();
+			dropAirports.executeUpdate("DROP TABLE IF EXISTS airports, delayedFlights");
+			System.out.println("UPDATE: Airports and DelayedFlights tables have been dropped");
+
+			String createAirportTable = "CREATE TABLE airports (" +
+					"airportCode VARCHAR(3) PRIMARY KEY," +
+					"airportName VARCHAR(64) NOT NULL UNIQUE," +
+					"city VARCHAR(64) NOT NULL," +
+					"state VARCHAR(64) NOT NULL);";
+
+			Statement createAirports = connection.createStatement();
+			createAirports.executeUpdate(createAirportTable);
+			System.out.println("UPDATE: Airports table has been created");
+
+			String createDelayedFlightsTable = "CREATE TABLE delayedFlights (" +
+					"id INTEGER PRIMARY KEY," +
+					"depTime TIMESTAMP NOT NULL," +
+					"scheduledDepTime TIMESTAMP NOT NULL," +
+					"arrTime TIMESTAMP NOT NULL," +
+					"scheduledArrTime TIMESTAMP NOT NULL," +
+					"uniqueCarrier VARCHAR(2) NOT NULL," +
+					"flightNum INTEGER NOT NULL," +
+					"orig VARCHAR(3) REFERENCES airports (airportCode)," +
+					"dest VARCHAR(3) REFERENCES airports (airportCode)," +
+					"distance INTEGER NOT NULL);";
+
+			Statement createDelayedFlights = connection.createStatement();
+			createDelayedFlights.executeUpdate(createDelayedFlightsTable);
+			System.out.println("UPDATE: Delayed Flights table has been created");
+
+			URL airportFileURI = Main.class.getClassLoader().getResource("airport.txt");
+			URL delayedFlightsFileURI = Main.class.getClassLoader().getResource("delayedFlights");
+
+			if (airportFileURI == null || delayedFlightsFileURI == null) {
+				throw new FileNotFoundException();
+			} else {
+
+				File airportFile = new File(airportFileURI.toURI());
+				BufferedReader airportFileReader = new BufferedReader(new FileReader(airportFile));
+				String insertAirportQuery = "INSERT INTO airports (airportCode, airportName, city, state) " +
+						"VALUES (?, ?, ?, ?);";
+
+				String line;
+				while ((line = airportFileReader.readLine()) != null) {
+
+					String[] splitRow = line.split(",");
+					PreparedStatement insertAirport = connection.prepareStatement(insertAirportQuery);
+
+					insertAirport.setString(1, splitRow[0]);
+					insertAirport.setString(2, splitRow[1]);
+					insertAirport.setString(3, splitRow[2]);
+					insertAirport.setString(4, splitRow[3]);
+
+				}
+
+				File delayedFlightsFile = new File(delayedFlightsFileURI.toURI());
+				BufferedReader delayedFlightsReader = new BufferedReader(new FileReader(delayedFlightsFile));
+				//18
+				String insertDelayedFlightQuery = "INSERT INTO delayedFlights VALUES " +
+						"(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+
+				while ((line = delayedFlightsReader.readLine()) != null) {
+
+					String[] splitRow = line.split(",");
+					PreparedStatement insertDelayedFlight = connection.prepareStatement(insertDelayedFlightQuery);
+
+					//Year not included. For some reason.
+					String date = "2022-" + splitRow[1] + "-" + splitRow[1];
+
+					insertDelayedFlight.setInt(1, Integer.parseInt(splitRow[0]));
+
+
+				}
+
+			}
+
+		} catch (SQLException | URISyntaxException | IOException e) {
+			e.printStackTrace();
 		}
 	}
 
-	// You can write your new methods here.
+	/**
+	 * Executes the queries needed
+	 *
+	 * @param connection postgresql db connection object.
+	 */
+	public static void queries(Connection connection) {
 
-	// ADVANCED: This method is for advanced users only. You should not need to change this!
+	}
+
+	/**
+	 * Util function to parse time for delayedFlights inputs.
+	 *
+	 * @param stringTime in format HHMM
+	 * @return Time object
+	 */
+	public static Time parseTime(String stringTime) {
+		System.out.println(stringTime.substring(0, 2) + ":" + stringTime.substring(2) + ":00");
+		return Time.valueOf(stringTime.substring(0, 2) + ":" + stringTime.substring(2) + ":00");
+	}
+
 	public static Connection connectToDatabase(String user, String password, String database) {
 		System.out.println("------ Testing PostgreSQL JDBC Connection ------");
 		Connection connection = null;
