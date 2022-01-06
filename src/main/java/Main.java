@@ -94,17 +94,25 @@ public class Main {
 						"VALUES (?, ?, ?, ?);";
 
 				String line;
+				PreparedStatement insertAirport = connection.prepareStatement(insertAirportQuery);
+
 				while ((line = airportFileReader.readLine()) != null) {
 
 					String[] splitRow = line.split(",");
-					PreparedStatement insertAirport = connection.prepareStatement(insertAirportQuery);
+					insertAirport.clearParameters();
 
 					insertAirport.setString(1, splitRow[0]);
 					insertAirport.setString(2, splitRow[1]);
 					insertAirport.setString(3, splitRow[2]);
 					insertAirport.setString(4, splitRow[3]);
 
+						insertAirport.addBatch();
+
 				}
+
+				try {
+					insertAirport.executeBatch();
+				} catch (SQLException e) {}
 
 				File delayedFlightsFile = new File(delayedFlightsFileURI.toURI());
 				BufferedReader delayedFlightsReader = new BufferedReader(new FileReader(delayedFlightsFile));
@@ -112,18 +120,34 @@ public class Main {
 				String insertDelayedFlightQuery = "INSERT INTO delayedFlights VALUES " +
 						"(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
 
+				PreparedStatement insertDelayedFlight = connection.prepareStatement(insertDelayedFlightQuery);
+
 				while ((line = delayedFlightsReader.readLine()) != null) {
 
+					insertDelayedFlight.clearParameters();
 					String[] splitRow = line.split(",");
-					PreparedStatement insertDelayedFlight = connection.prepareStatement(insertDelayedFlightQuery);
 
 					//Year not included. For some reason.
-					String date = "2022-" + splitRow[1] + "-" + splitRow[1];
+					String date = "2022-" + splitRow[1] + "-" + splitRow[2];
 
 					insertDelayedFlight.setInt(1, Integer.parseInt(splitRow[0]));
+					insertDelayedFlight.setTimestamp(2, parseTimestamp(date, splitRow[4]));
+					insertDelayedFlight.setTimestamp(3, parseTimestamp(date, splitRow[5]));
+					insertDelayedFlight.setTimestamp(4, parseTimestamp(date, splitRow[6]));
+					insertDelayedFlight.setTimestamp(5, parseTimestamp(date, splitRow[7]));
+					insertDelayedFlight.setString(6, splitRow[8]);
+					insertDelayedFlight.setInt(7, Integer.parseInt(splitRow[9]));
+					insertDelayedFlight.setString(8, splitRow[15]);
+					insertDelayedFlight.setString(9, splitRow[16]);
+					insertDelayedFlight.setInt(10, Integer.parseInt(splitRow[17]));
 
+					insertDelayedFlight.addBatch();
 
 				}
+
+				try {
+					insertDelayedFlight.executeBatch();
+				} catch (SQLException e) {}
 
 			}
 
@@ -144,12 +168,21 @@ public class Main {
 	/**
 	 * Util function to parse time for delayedFlights inputs.
 	 *
+	 * @param stringDate in format YYYY-MM-DD
 	 * @param stringTime in format HHMM
 	 * @return Time object
 	 */
-	public static Time parseTime(String stringTime) {
-		System.out.println(stringTime.substring(0, 2) + ":" + stringTime.substring(2) + ":00");
-		return Time.valueOf(stringTime.substring(0, 2) + ":" + stringTime.substring(2) + ":00");
+	public static Timestamp parseTimestamp(String stringDate, String stringTime) {
+
+		if (stringTime.length() == 3) {
+			stringTime = "0" + stringTime;
+		} else if (stringTime.length() == 2) {
+			stringTime = "00" + stringTime;
+		} else if (stringTime.length() == 1) {
+			stringTime = "000" + stringTime;
+		}
+
+		return Timestamp.valueOf(stringDate + " " + stringTime.substring(0, 2) + ":" + stringTime.substring(2) + ":00");
 	}
 
 	public static Connection connectToDatabase(String user, String password, String database) {
